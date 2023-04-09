@@ -1,0 +1,53 @@
+# Import necessary libraries
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///roomiematch.db'
+app.config['SECRET_KEY'] = 'secret_key'
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+# Database Models
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(30), unique=True, nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(80), nullable=False)
+    role = db.Column(db.String(20), nullable=False) # "landlord" or "student"
+    properties = db.relationship('Property', backref='user', lazy=True)
+
+class Property(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    address = db.Column(db.String(150), nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    num_rooms = db.Column(db.Integer, nullable=False)
+    images = db.Column(db.Text, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+db.create_all()
+
+# Routes
+@app.route('/')
+def homepage():
+    properties = Property.query.all()
+    return render_template('homepage.html', properties=properties)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
+        if user and user.password == password:
+            login_user(user)
+            return redirect(url_for('homepage'))
+        else:
+            flash('Invalid email or password.', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
